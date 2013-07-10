@@ -7,12 +7,11 @@ from time import sleep
 import hashlib
 from colorpy import colormodels
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger('hue')
-
-
 AUTH_FAILURE_RETRIES = 6
 AUTH_FAILURE_SLEEP = 10
+
+logging.basicConfig()
+logger = logging.getLogger('hue')
 
 
 class Hue:
@@ -29,6 +28,12 @@ class Hue:
     groups = {}
     schedules = {}
     config = {}
+
+    def __init__(self, debug=True):
+        if debug == False:
+            logger.setLevel(logging.ERROR)
+        else:
+            logger.setLevel(logging.DEBUG)
 
     def request(self, *args, **kwargs):
         path = "http://%s/api/%s%s" % (
@@ -78,6 +83,7 @@ class Hue:
         logger.debug(resp)
         logger.debug(resp.content)
 
+
         resp = json.loads(resp.content)
 
         logger.debug(resp)
@@ -114,6 +120,7 @@ class Hue:
         self.last_update_state = datetime.datetime.now()
 
 
+
 class ExtendedColorLight:
     last_status_time = None
     light_id = None
@@ -126,52 +133,48 @@ class ExtendedColorLight:
 
     def update_state_cache(self, values=None):
         if not values:
-            values = self.hue.request(path="/lights/%s" % self.light_id)
+            values = self.hue.request(path = "/lights/%s" % self.light_id)
 
         self.state.update(values)
         self.last_status_time = datetime.datetime.now()
 
     def set_state(self, state):
-        self.hue.request(
-            path="/lights/%s/state" % self.light_id,
-            method="PUT",
-            data=json.dumps(state))
+        self.hue.request(path="/lights/%s/state" % self.light_id, method="PUT", data=json.dumps(state))
         self.update_state_cache()
         return self
 
-    def on(self, transitiontime=5):
-        return self.set_state({"on": True, "transitiontime": transitiontime})
+    def on(self):
+        return self.set_state({"on": True})
 
-    def off(self, transitiontime=5):
-        return self.set_state({"on": False, "transitiontime": transitiontime})
+    def off(self):
+        return self.set_state({"on": False})
 
-    def ct(self, ct, transitiontime=5):
+    def ct(self, ct):
         # set color temp in mired scale
-        return self.set_state({"ct": ct, "transitiontime": transitiontime})
+        return self.set_state({"ct": ct})
 
-    def cct(self, cct, transitiontime=5):
+    def cct(self, cct):
         # set color temp in degrees kelvin
-        return self.ct(1000000 / cct, transitiontime)
+        return self.ct(1000000 / cct)
 
-    def bri(self, level, transitiontime=5):
+    def bri(self, level):
         # level between 0 and 255
-        return self.set_state({"bri": level, "transitiontime": transitiontime})
+        return self.set_state({"bri": level})
 
-    def toggle(self, transitiontime=5):
+    def toggle(self):
         self.update_state_cache()
-        if self.state and self.state.get(
-                'state', None) and self.state["state"].get("on", None):
-            self.off(transitiontime)
+        if self.state and self.state.get('state', None) and self.state["state"].get("on", None):
+            self.off()
         else:
-            self.on(transitiontime)
+            self.on()
 
     def alert(self, type="select"):
         return self.set_state({"alert": type})
 
-    def xy(self, x, y, transitiontime=5):
-        return self.set_state({"xy": [x, y], "transitiontime": transitiontime})
+    def xy(self, x, y):
+        return self.set_state({"xy": [x, y]})
 
-    def rgb(self, red, green=None, blue=None, transitiontime=5):
+    def rgb(self, red, green=None, blue=None):
         if isinstance(red, basestring):
             # assume a hex string is passed
             rstring = red
@@ -179,16 +182,11 @@ class ExtendedColorLight:
             green = int(rstring[3:5], 16)
             blue = int(rstring[5:], 16)
 
-        print red, green, blue
-
         # We need to convert the RGB value to Yxy.
         redScale = float(red) / 255.0
         greenScale = float(green) / 255.0
         blueScale = float(blue) / 255.0
-        colormodels.init(
-            phosphor_red=colormodels.xyz_color(0.64843, 0.33086),
-            phosphor_green=colormodels.xyz_color(0.4091, 0.518),
-            phosphor_blue=colormodels.xyz_color(0.167, 0.04))
+        colormodels.init(phosphor_red=colormodels.xyz_color(0.64843, 0.33086), phosphor_green=colormodels.xyz_color(0.4091,0.518), phosphor_blue=colormodels.xyz_color(0.167, 0.04))
         logger.debug(redScale, greenScale, blueScale)
         xyz = colormodels.irgb_color(red, green, blue)
         logger.debug(xyz)
@@ -197,13 +195,11 @@ class ExtendedColorLight:
         xyz = colormodels.xyz_normalize(xyz)
         logger.debug(xyz)
 
-        return self.set_state(
-            {"xy": [xyz[0], xyz[1]], "transitiontime": transitiontime})
+        return self.set_state({"xy": [xyz[0], xyz[1]]})
 
 
 class TooManyFailures(Exception):
     pass
-
 
 class CouldNotAuthenticate(Exception):
     pass
